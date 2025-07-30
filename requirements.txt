@@ -1,0 +1,6 @@
+ttkbootstrap>=1.10.1
+pygame>=2.5.0
+pandas>=2.0.0
+pydub>=0.25.1
+openpyxl>=3.1.0
+pyperclip>=1.8.0
