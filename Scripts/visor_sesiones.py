@@ -1,6 +1,6 @@
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
-from tkinter import filedialog, messagebox, Listbox, Menu, Toplevel
+from tkinter import filedialog, messagebox, Listbox, Menu, Toplevel, Canvas
 import tkinter as tk
 import zipfile
 import re
@@ -18,6 +18,9 @@ import pandas as pd
 import pyperclip
 import numpy as np
 from pydub import AudioSegment
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.style as style
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -50,6 +53,15 @@ class SessionViewerApp:
         self.audio_duration = 0
         self.audio_position = 0
         self.seek_enabled = True
+        
+        # Nuevas variables para waveform y marcadores
+        self.waveform_data = None
+        self.waveform_canvas = None
+        self.waveform_figure = None
+        self.waveform_ax = None
+        self.current_markers = []
+        self.marker_lines = []
+        self.show_waveform = True
         
         # Base de datos para notas y metadatos
         self.init_database()
@@ -175,7 +187,17 @@ class SessionViewerApp:
             theme_menu.add_command(label=theme.title(), command=lambda t=theme: self.change_theme(t))
         
         view_menu.add_separator()
+        view_menu.add_command(label="Mostrar/Ocultar Waveform", command=self.toggle_waveform)
         view_menu.add_command(label="Estadísticas", command=self.show_statistics)
+        
+        # Menú Marcadores
+        markers_menu = Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Marcadores", menu=markers_menu)
+        markers_menu.add_command(label="Agregar Marcador", command=self.add_marker, accelerator="Ctrl+M")
+        markers_menu.add_command(label="Gestionar Marcadores", command=self.show_markers_window)
+        markers_menu.add_separator()
+        markers_menu.add_command(label="Ir al Siguiente", command=self.next_marker, accelerator="Ctrl+→")
+        markers_menu.add_command(label="Ir al Anterior", command=self.previous_marker, accelerator="Ctrl+←")
         
         # Menú Herramientas
         tools_menu = Menu(menubar, tearoff=0)
@@ -194,6 +216,9 @@ class SessionViewerApp:
         self.root.bind('<Left>', lambda e: self.seek_backward())
         self.root.bind('<Right>', lambda e: self.seek_forward())
         self.root.bind('<Control-f>', lambda e: self.show_advanced_search())
+        self.root.bind('<Control-m>', lambda e: self.add_marker())
+        self.root.bind('<Control-Right>', lambda e: self.next_marker())
+        self.root.bind('<Control-Left>', lambda e: self.previous_marker())
     
     def on_closing(self):
         """Manejar cierre de la aplicación"""
@@ -340,10 +365,31 @@ class SessionViewerApp:
 
         tb.Button(extra_frame, text="📝", command=self.add_note, bootstyle="info", width=8).pack(side="left", padx=2)
         tb.Button(extra_frame, text="📊", command=self.show_excel, bootstyle="warning", width=8).pack(side="left", padx=2)
+        tb.Button(extra_frame, text="🔖", command=self.add_marker, bootstyle="secondary", width=8).pack(side="left", padx=2)
 
         # Estado
         self.label_status = tb.Label(controls_frame, text="Estado: Esperando...", font=("Segoe UI", 9), foreground="gray")
         self.label_status.pack(pady=(5, 0))
+        
+        # Waveform Display
+        self.waveform_frame = tb.LabelFrame(right_panel, text="Visualización de Audio", padding=5)
+        self.waveform_frame.pack(fill="both", expand=True, pady=(5, 0))
+        
+        # Crear figura de matplotlib para waveform
+        style.use('dark_background')
+        self.waveform_figure = plt.Figure(figsize=(8, 3), dpi=80, facecolor='#2b2b2b')
+        self.waveform_ax = self.waveform_figure.add_subplot(111)
+        self.waveform_ax.set_facecolor('#1e1e1e')
+        
+        # Canvas para mostrar el waveform
+        self.waveform_canvas = FigureCanvasTkAgg(self.waveform_figure, self.waveform_frame)
+        self.waveform_canvas.get_tk_widget().pack(fill="both", expand=True)
+        
+        # Bind eventos del waveform
+        self.waveform_canvas.mpl_connect('button_press_event', self.on_waveform_click)
+        
+        # Inicializar waveform vacío
+        self.clear_waveform()
         
         # Configurar el protocolo de cierre
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -551,6 +597,18 @@ class SessionViewerApp:
                 self.progress['value'] = 0
                 self.audio_position = 0
                 
+                # Generar y mostrar waveform
+                if self.generate_waveform(audio_path):
+                    self.update_waveform_display()
+                
+                # Cargar marcadores para esta sesión
+                display_text = self.listbox.get(idx)
+                nombre_audio = display_text.split(' ', 1)[1] if ' ' in display_text else display_text
+                session_id = self.get_session_id_from_filename(nombre_audio)
+                if session_id:
+                    self.load_markers_for_session(session_id)
+                    self.update_waveform_display()
+                
                 # Iniciar actualización de progreso
                 self.update_progress()
                 
@@ -590,6 +648,20 @@ class SessionViewerApp:
                 self.audio_position = pos_ms / 1000.0
                 self.progress['value'] = self.audio_position
                 self.update_time_display()
+                
+                # Actualizar línea de posición en waveform
+                if self.waveform_data and hasattr(self, 'waveform_ax'):
+                    # Limpiar línea anterior y dibujar nueva
+                    try:
+                        lines = [l for l in self.waveform_ax.lines if l.get_color() == 'red']
+                        for line in lines:
+                            line.remove()
+                        
+                        if self.audio_position <= self.waveform_data['duration']:
+                            self.waveform_ax.axvline(x=self.audio_position, color='red', linewidth=2, alpha=0.8)
+                            self.waveform_canvas.draw_idle()
+                    except:
+                        pass
             
             # Continuar actualizando
             self.root.after(100, self.update_progress)
@@ -1377,6 +1449,357 @@ Duración promedio: {self.format_time(avg_duration)}
             stats_info += "\n"
         
         stats_text.insert("end", stats_info)
+
+    # =================== FUNCIONES PARA WAVEFORM ===================
+    
+    def clear_waveform(self):
+        """Limpiar el display del waveform"""
+        self.waveform_ax.clear()
+        self.waveform_ax.set_xlim(0, 100)
+        self.waveform_ax.set_ylim(-1, 1)
+        self.waveform_ax.set_xlabel('Tiempo', color='white')
+        self.waveform_ax.set_ylabel('Amplitud', color='white')
+        self.waveform_ax.set_title('Selecciona un audio para ver la forma de onda', color='white')
+        self.waveform_ax.tick_params(colors='white')
+        self.waveform_canvas.draw()
+    
+    def generate_waveform(self, audio_path):
+        """Generar datos del waveform para un archivo de audio"""
+        try:
+            # Cargar audio con pydub
+            audio = AudioSegment.from_file(audio_path)
+            
+            # Convertir a mono si es estéreo
+            if audio.channels > 1:
+                audio = audio.set_channels(1)
+            
+            # Obtener datos raw
+            samples = np.array(audio.get_array_of_samples(), dtype=np.float32)
+            
+            # Normalizar
+            if len(samples) > 0:
+                samples = samples / np.max(np.abs(samples))
+            
+            # Reducir muestreo para mejor rendimiento visual
+            target_samples = 2000  # Puntos para mostrar
+            if len(samples) > target_samples:
+                step = len(samples) // target_samples
+                samples = samples[::step]
+            
+            # Crear eje de tiempo
+            duration = len(audio) / 1000.0  # duración en segundos
+            time_axis = np.linspace(0, duration, len(samples))
+            
+            self.waveform_data = {
+                'samples': samples,
+                'time': time_axis,
+                'duration': duration
+            }
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error generando waveform: {e}")
+            return False
+    
+    def update_waveform_display(self):
+        """Actualizar la visualización del waveform"""
+        if not self.waveform_data:
+            self.clear_waveform()
+            return
+        
+        self.waveform_ax.clear()
+        
+        # Plotear waveform
+        self.waveform_ax.plot(self.waveform_data['time'], self.waveform_data['samples'], 
+                            color='#00ff41', linewidth=0.8, alpha=0.8)
+        
+        # Configurar ejes
+        self.waveform_ax.set_xlim(0, self.waveform_data['duration'])
+        self.waveform_ax.set_ylim(-1.1, 1.1)
+        self.waveform_ax.set_xlabel('Tiempo (segundos)', color='white', fontsize=9)
+        self.waveform_ax.set_ylabel('Amplitud', color='white', fontsize=9)
+        self.waveform_ax.tick_params(colors='white', labelsize=8)
+        self.waveform_ax.grid(True, alpha=0.3, color='gray')
+        
+        # Mostrar posición actual
+        if hasattr(self, 'audio_position') and self.audio_position > 0:
+            self.waveform_ax.axvline(x=self.audio_position, color='red', linewidth=2, alpha=0.8)
+        
+        # Mostrar marcadores
+        self.update_markers_on_waveform()
+        
+        # Configurar el título
+        filename = os.path.basename(self.current_audio) if self.current_audio else "Audio"
+        self.waveform_ax.set_title(f'{filename}', color='white', fontsize=10)
+        
+        self.waveform_canvas.draw()
+    
+    def update_markers_on_waveform(self):
+        """Actualizar marcadores en el waveform"""
+        # Limpiar marcadores anteriores
+        for line in self.marker_lines:
+            line.remove()
+        self.marker_lines.clear()
+        
+        # Dibujar marcadores actuales
+        if hasattr(self, 'current_markers'):
+            for marker in self.current_markers:
+                line = self.waveform_ax.axvline(x=marker['position'], color='yellow', 
+                                              linewidth=1.5, alpha=0.7, linestyle='--')
+                self.marker_lines.append(line)
+                
+                # Agregar etiqueta del marcador
+                self.waveform_ax.text(marker['position'], 0.9, marker['label'], 
+                                    rotation=90, color='yellow', fontsize=8, 
+                                    verticalalignment='bottom')
+    
+    def on_waveform_click(self, event):
+        """Manejar clic en el waveform para seek"""
+        if event.inaxes != self.waveform_ax or not self.current_audio:
+            return
+        
+        if self.waveform_data and event.xdata:
+            # Calcular posición de tiempo basada en el clic
+            clicked_time = event.xdata
+            if 0 <= clicked_time <= self.waveform_data['duration']:
+                self.seek_to_position(clicked_time)
+                self.update_waveform_display()
+    
+    def toggle_waveform(self):
+        """Mostrar/ocultar waveform"""
+        if self.show_waveform:
+            self.waveform_frame.pack_forget()
+            self.show_waveform = False
+        else:
+            self.waveform_frame.pack(fill="both", expand=True, pady=(5, 0))
+            self.show_waveform = True
+    
+    # =================== FUNCIONES PARA MARCADORES ===================
+    
+    def add_marker(self):
+        """Agregar marcador en la posición actual"""
+        if not self.current_audio:
+            messagebox.showwarning("Advertencia", "No hay audio reproduciendo")
+            return
+        
+        # Obtener ID de sesión
+        current_idx = self.listbox.curselection()[0] if self.listbox.curselection() else None
+        if current_idx is None:
+            return
+        
+        display_text = self.listbox.get(current_idx)
+        nombre_audio = display_text.split(' ', 1)[1] if ' ' in display_text else display_text
+        session_id = self.get_session_id_from_filename(nombre_audio)
+        
+        if not session_id:
+            messagebox.showwarning("Advertencia", "No se pudo identificar la sesión")
+            return
+        
+        # Ventana para crear marcador
+        marker_window = Toplevel(self.root)
+        marker_window.title("Nuevo Marcador")
+        marker_window.geometry("400x250")
+        marker_window.transient(self.root)
+        marker_window.grab_set()
+        
+        tb.Label(marker_window, text="Crear Marcador", font=("Segoe UI", 14, "bold")).pack(pady=10)
+        
+        # Mostrar posición actual
+        current_time = self.format_time(self.audio_position)
+        tb.Label(marker_window, text=f"Posición: {current_time}", font=("Segoe UI", 10)).pack(pady=5)
+        
+        # Campo para etiqueta
+        tb.Label(marker_window, text="Etiqueta:").pack(anchor="w", padx=20)
+        label_var = tk.StringVar()
+        label_entry = tb.Entry(marker_window, textvariable=label_var, width=30)
+        label_entry.pack(pady=5, padx=20, fill="x")
+        label_entry.focus()
+        
+        # Campo para descripción
+        tb.Label(marker_window, text="Descripción (opcional):").pack(anchor="w", padx=20, pady=(10, 0))
+        desc_text = tb.Text(marker_window, height=4, width=30)
+        desc_text.pack(pady=5, padx=20, fill="both", expand=True)
+        
+        # Botones
+        btn_frame = tb.Frame(marker_window)
+        btn_frame.pack(fill="x", padx=20, pady=10)
+        
+        def save_marker():
+            label = label_var.get().strip()
+            if not label:
+                messagebox.showwarning("Advertencia", "La etiqueta es obligatoria")
+                return
+            
+            description = desc_text.get("1.0", "end-1c").strip()
+            
+            # Guardar en base de datos
+            self.save_marker_to_db(session_id, self.audio_position, label, description)
+            
+            # Actualizar marcadores actuales
+            self.load_markers_for_session(session_id)
+            
+            # Actualizar waveform
+            self.update_waveform_display()
+            
+            marker_window.destroy()
+            messagebox.showinfo("Guardado", "Marcador creado correctamente")
+        
+        tb.Button(btn_frame, text="Guardar", command=save_marker, bootstyle="success").pack(side="right", padx=5)
+        tb.Button(btn_frame, text="Cancelar", command=marker_window.destroy, bootstyle="secondary").pack(side="right")
+    
+    def save_marker_to_db(self, session_id, position, label, description):
+        """Guardar marcador en la base de datos"""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('''
+                INSERT INTO audio_markers (session_id, position_seconds, label, description)
+                VALUES (?, ?, ?, ?)
+            ''', (session_id, position, label, description))
+            self.conn.commit()
+        except Exception as e:
+            logger.error(f"Error guardando marcador: {e}")
+    
+    def load_markers_for_session(self, session_id):
+        """Cargar marcadores para una sesión específica"""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('''
+                SELECT position_seconds, label, description 
+                FROM audio_markers 
+                WHERE session_id = ? 
+                ORDER BY position_seconds
+            ''', (session_id,))
+            
+            self.current_markers = []
+            for row in cursor.fetchall():
+                self.current_markers.append({
+                    'position': row[0],
+                    'label': row[1],
+                    'description': row[2]
+                })
+        except Exception as e:
+            logger.error(f"Error cargando marcadores: {e}")
+            self.current_markers = []
+    
+    def next_marker(self):
+        """Ir al siguiente marcador"""
+        if not self.current_markers:
+            return
+        
+        next_markers = [m for m in self.current_markers if m['position'] > self.audio_position]
+        if next_markers:
+            next_marker = min(next_markers, key=lambda x: x['position'])
+            self.seek_to_position(next_marker['position'])
+            self.update_waveform_display()
+    
+    def previous_marker(self):
+        """Ir al marcador anterior"""
+        if not self.current_markers:
+            return
+        
+        prev_markers = [m for m in self.current_markers if m['position'] < self.audio_position]
+        if prev_markers:
+            prev_marker = max(prev_markers, key=lambda x: x['position'])
+            self.seek_to_position(prev_marker['position'])
+            self.update_waveform_display()
+    
+    def show_markers_window(self):
+        """Mostrar ventana de gestión de marcadores"""
+        if not self.current_audio:
+            messagebox.showwarning("Advertencia", "Selecciona un audio primero")
+            return
+        
+        # Obtener ID de sesión
+        current_idx = self.listbox.curselection()[0] if self.listbox.curselection() else None
+        if current_idx is None:
+            return
+        
+        display_text = self.listbox.get(current_idx)
+        nombre_audio = display_text.split(' ', 1)[1] if ' ' in display_text else display_text
+        session_id = self.get_session_id_from_filename(nombre_audio)
+        
+        if not session_id:
+            messagebox.showwarning("Advertencia", "No se pudo identificar la sesión")
+            return
+        
+        markers_window = Toplevel(self.root)
+        markers_window.title("Gestión de Marcadores")
+        markers_window.geometry("600x400")
+        
+        tb.Label(markers_window, text=f"Marcadores - {nombre_audio}", 
+                font=("Segoe UI", 12, "bold")).pack(pady=10)
+        
+        # Lista de marcadores
+        list_frame = tb.Frame(markers_window)
+        list_frame.pack(fill="both", expand=True, padx=10, pady=5)
+        
+        columns = ("Tiempo", "Etiqueta", "Descripción")
+        tree = tb.Treeview(list_frame, columns=columns, show="headings", height=12)
+        
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, width=150)
+        
+        # Scrollbar
+        scrollbar = tb.Scrollbar(list_frame, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        
+        tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Cargar marcadores
+        self.load_markers_for_session(session_id)
+        for marker in self.current_markers:
+            tree.insert("", "end", values=(
+                self.format_time(marker['position']),
+                marker['label'],
+                marker['description'][:50] + "..." if len(marker['description']) > 50 else marker['description']
+            ))
+        
+        # Botones
+        btn_frame = tb.Frame(markers_window)
+        btn_frame.pack(fill="x", padx=10, pady=10)
+        
+        def go_to_marker():
+            selection = tree.selection()
+            if selection:
+                item = tree.item(selection[0])
+                marker_label = item['values'][1]
+                marker = next((m for m in self.current_markers if m['label'] == marker_label), None)
+                if marker:
+                    self.seek_to_position(marker['position'])
+                    self.update_waveform_display()
+                    markers_window.destroy()
+        
+        def delete_marker():
+            selection = tree.selection()
+            if selection:
+                if messagebox.askyesno("Confirmar", "¿Eliminar marcador seleccionado?"):
+                    item = tree.item(selection[0])
+                    marker_label = item['values'][1]
+                    self.delete_marker_from_db(session_id, marker_label)
+                    self.load_markers_for_session(session_id)
+                    self.update_waveform_display()
+                    tree.delete(selection[0])
+        
+        tb.Button(btn_frame, text="Ir a Marcador", command=go_to_marker, bootstyle="primary").pack(side="left", padx=5)
+        tb.Button(btn_frame, text="Eliminar", command=delete_marker, bootstyle="danger").pack(side="left", padx=5)
+        tb.Button(btn_frame, text="Cerrar", command=markers_window.destroy, bootstyle="secondary").pack(side="right")
+        
+        tree.bind("<Double-1>", lambda e: go_to_marker())
+    
+    def delete_marker_from_db(self, session_id, label):
+        """Eliminar marcador de la base de datos"""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('''
+                DELETE FROM audio_markers 
+                WHERE session_id = ? AND label = ?
+            ''', (session_id, label))
+            self.conn.commit()
+        except Exception as e:
+            logger.error(f"Error eliminando marcador: {e}")
 
 if __name__ == '__main__':
     root = tb.Window(themename="superhero")
