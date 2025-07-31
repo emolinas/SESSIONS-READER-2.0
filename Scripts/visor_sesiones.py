@@ -590,14 +590,16 @@ class SessionViewerApp:
                 try:
                     self.audio_segment = AudioSegment.from_mp3(audio_path)
                     self.audio_duration = len(self.audio_segment) / 1000.0  # Convertir a segundos
-                except Exception:
-                    self.audio_duration = 0
+                except Exception as e:
+                    logger.info(f"No se pudo obtener duración con pydub: {e}")
+                    # Establecer duración estimada o por defecto
+                    self.audio_duration = 180  # 3 minutos por defecto, se ajustará durante reproducción
                 
                 self.progress['maximum'] = self.audio_duration if self.audio_duration > 0 else 100
                 self.progress['value'] = 0
                 self.audio_position = 0
                 
-                # Generar y mostrar waveform
+                # Generar y mostrar waveform (ahora que tenemos la duración)
                 if self.generate_waveform(audio_path):
                     self.update_waveform_display()
                 
@@ -1466,37 +1468,67 @@ Duración promedio: {self.format_time(avg_duration)}
     def generate_waveform(self, audio_path):
         """Generar datos del waveform para un archivo de audio"""
         try:
-            # Cargar audio con pydub
-            audio = AudioSegment.from_file(audio_path)
-            
-            # Convertir a mono si es estéreo
-            if audio.channels > 1:
-                audio = audio.set_channels(1)
-            
-            # Obtener datos raw
-            samples = np.array(audio.get_array_of_samples(), dtype=np.float32)
-            
-            # Normalizar
-            if len(samples) > 0:
-                samples = samples / np.max(np.abs(samples))
-            
-            # Reducir muestreo para mejor rendimiento visual
-            target_samples = 2000  # Puntos para mostrar
-            if len(samples) > target_samples:
-                step = len(samples) // target_samples
-                samples = samples[::step]
-            
-            # Crear eje de tiempo
-            duration = len(audio) / 1000.0  # duración en segundos
-            time_axis = np.linspace(0, duration, len(samples))
-            
-            self.waveform_data = {
-                'samples': samples,
-                'time': time_axis,
-                'duration': duration
-            }
-            
-            return True
+            # Intentar primero con pydub (si ffmpeg está disponible)
+            try:
+                audio = AudioSegment.from_file(audio_path)
+                
+                # Convertir a mono si es estéreo
+                if audio.channels > 1:
+                    audio = audio.set_channels(1)
+                
+                # Obtener datos raw
+                samples = np.array(audio.get_array_of_samples(), dtype=np.float32)
+                
+                # Normalizar
+                if len(samples) > 0:
+                    samples = samples / np.max(np.abs(samples))
+                
+                # Reducir muestreo para mejor rendimiento visual
+                target_samples = 2000  # Puntos para mostrar
+                if len(samples) > target_samples:
+                    step = len(samples) // target_samples
+                    samples = samples[::step]
+                
+                # Crear eje de tiempo
+                duration = len(audio) / 1000.0  # duración en segundos
+                time_axis = np.linspace(0, duration, len(samples))
+                
+                self.waveform_data = {
+                    'samples': samples,
+                    'time': time_axis,
+                    'duration': duration
+                }
+                
+                return True
+                
+            except Exception as e:
+                logger.info(f"pydub falló, usando método alternativo: {e}")
+                
+                # Método alternativo: generar waveform simple basado en duración
+                if hasattr(self, 'audio_duration') and self.audio_duration > 0:
+                    # Crear una representación visual simple
+                    duration = self.audio_duration
+                    time_points = 1000
+                    time_axis = np.linspace(0, duration, time_points)
+                    
+                    # Generar una forma de onda sintética (simulada)
+                    # Esto es solo para visualización hasta que se configure ffmpeg
+                    np.random.seed(42)  # Para consistencia
+                    samples = np.random.normal(0, 0.3, time_points)
+                    
+                    # Simular envolvente de audio
+                    envelope = np.exp(-np.abs(time_axis - duration/2) / (duration/4))
+                    samples = samples * envelope * 0.8
+                    
+                    self.waveform_data = {
+                        'samples': samples,
+                        'time': time_axis,
+                        'duration': duration
+                    }
+                    
+                    return True
+                
+                return False
             
         except Exception as e:
             logger.error(f"Error generando waveform: {e}")
@@ -1531,7 +1563,13 @@ Duración promedio: {self.format_time(avg_duration)}
         
         # Configurar el título
         filename = os.path.basename(self.current_audio) if self.current_audio else "Audio"
-        self.waveform_ax.set_title(f'{filename}', color='white', fontsize=10)
+        
+        # Agregar nota sobre ffmpeg si es necesario
+        title = f'{filename}'
+        if hasattr(self, 'waveform_data') and len(self.waveform_data.get('samples', [])) == 1000:
+            title += ' (Waveform simulado - instalar ffmpeg para waveform real)'
+        
+        self.waveform_ax.set_title(title, color='white', fontsize=10)
         
         self.waveform_canvas.draw()
     
