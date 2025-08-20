@@ -27,6 +27,12 @@ ENV/
 env.bak/
 venv.bak/
 
+# Virtualenv local del proyecto (no versionar la carpeta creada por venv/venv CLI)
+Scripts/
+Lib/
+Include/
+pyvenv.cfg
+
 # Archivos de configuración específicos del usuario
 .visor_sesiones_config.json
 .visor_sesiones.db
@@ -45,6 +51,7 @@ tmp/
 *.zip
 *.xlsx
 *.xls
+ffmpeg.exe
 
 # IDEs
 .vscode/
@@ -64,3 +71,50 @@ logs/
 # Archivos de respaldo
 *.bak
 *.backup
+
+# Ignore project virtualenv folders and Python build artifacts (do not commit these)
+/Include/
+/Lib/
+/Scripts/
+pyvenv.cfg
+venv/
+.env
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.whl
+*.egg
+
+# OS / IDE files
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# ffmpeg binary (if placed for local testing)
+/Scripts/ffmpeg.exe
+
+# temp and logs
+*.log
+*.tmp
+*.temp
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Composer / node
+node_modules/
+
+# Ignore compiled C extensions
+*.so
+
+# Coverage
+coverage.xml
+htmlcov/
+
+# Ignore large site-packages if accidentally present
+Lib/site-packages/
+
+# Keep this file tracked

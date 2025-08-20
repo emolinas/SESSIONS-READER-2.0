@@ -1,0 +1,13 @@
+# Ensure consistent line endings and treat binaries correctly
+* text=auto
+*.py text eol=crlf
+*.sh text eol=lf
+
+# Mark ffmpeg binary as binary
+/Scripts/ffmpeg.exe binary
+
+# Export-ignore for files not needed in release archives
+/.venv/ export-ignore
+/Lib/ export-ignore
+/Scripts/ export-ignore
+
