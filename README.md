@@ -71,3 +71,21 @@ Desarrollado para gestión de sesiones de audio.
 ## Licencia
 
 Proyecto de uso personal.
+
+## Try it (Quick)
+
+1. Crea un virtualenv fuera del repositorio y actívalo.
+2. Instala dependencias:
+
+   pip install -r requirements.txt
+
+3. Asegúrate de que `ffmpeg` esté disponible (ver nota arriba).
+4. Ejecuta la aplicación:
+
+   # PowerShell
+   & "C:/Users/emsin/MY PROYECTS/VISUAL ESTUDIO CODE/SESSIONS READER/Scripts/python.exe" "Scripts/visor_launcher.py"
+
+## Notas
+
+- No mantengas el entorno virtual dentro del repositorio; ya fue removido del control de versiones.
+- Si ves avisos relacionados con ffmpeg, coloca `ffmpeg.exe` en `Scripts/` o define `FFMPEG_PATH`.

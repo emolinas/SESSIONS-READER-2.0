@@ -5,3 +5,8 @@ pydub>=0.25.1
 openpyxl>=3.1.0
 pyperclip>=1.8.0
 matplotlib>=3.5.0
+# Optional / advanced features
+numpy>=1.24.0
+seaborn>=0.12.0
+librosa>=0.10.0
+soundfile>=0.12.1
