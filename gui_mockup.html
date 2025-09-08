@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sessions Reader 2.0 - GUI Mock</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        .window {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            overflow: hidden;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .titlebar {
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+            color: white;
+            padding: 10px 20px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .controls {
+            display: flex;
+            gap: 8px;
+        }
+        .control-btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: none;
+        }
+        .close { background: #ff5f56; }
+        .minimize { background: #ffbd2e; }
+        .maximize { background: #27ca3f; }
+        
+        .menubar {
+            background: #f5f5f5;
+            padding: 8px 20px;
+            border-bottom: 1px solid #ddd;
+            font-size: 14px;
+        }
+        .menu-item {
+            display: inline-block;
+            padding: 5px 10px;
+            margin-right: 10px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .menu-item:hover {
+            background: #e0e0e0;
+        }
+        
+        .main-content {
+            display: flex;
+            height: 600px;
+        }
+        .sidebar {
+            width: 300px;
+            background: #f8f9fa;
+            border-right: 1px solid #ddd;
+            padding: 20px;
+        }
+        .content-area {
+            flex: 1;
+            padding: 20px;
+        }
+        
+        .section {
+            margin-bottom: 20px;
+        }
+        .section h3 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+            font-size: 16px;
+        }
+        
+        .audio-controls {
+            background: #2c3e50;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .control-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .control-btn-audio {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .control-btn-audio:hover {
+            background: #2980b9;
+        }
+        .control-btn-audio.active {
+            background: #27ae60;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #34495e;
+            border-radius: 3px;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            width: 35%;
+            height: 100%;
+            background: #3498db;
+            border-radius: 3px;
+        }
+        
+        .file-list {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .file-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+        .file-item:hover {
+            background: #f0f0f0;
+        }
+        .file-item.active {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .waveform {
+            background: #1a1a1a;
+            height: 120px;
+            border-radius: 5px;
+            margin: 20px 0;
+            position: relative;
+            overflow: hidden;
+        }
+        .waveform::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #333;
+            transform: translateY(-50%);
+        }
+        .waveform-data {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 2px;
+        }
+        .wave-bar {
+            width: 3px;
+            background: #3498db;
+            animation: wave 2s ease-in-out infinite;
+        }
+        .wave-bar:nth-child(odd) {
+            animation-delay: 0.1s;
+        }
+        .wave-bar:nth-child(even) {
+            animation-delay: 0.2s;
+        }
+        
+        @keyframes wave {
+            0%, 100% { height: 20px; }
+            50% { height: 60px; }
+        }
+        
+        .status-bar {
+            background: #34495e;
+            color: white;
+            padding: 8px 20px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .success-indicator {
+            background: #27ae60;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        
+        .btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        .btn:hover {
+            background: #2980b9;
+        }
+        .btn-success {
+            background: #27ae60;
+        }
+        .btn-success:hover {
+            background: #229954;
+        }
+    </style>
+</head>
+<body>
+    <div class="window">
+        <div class="titlebar">
+            <span>Visor de Sesiones Avanzado - Sessions Reader 2.0</span>
+            <div class="controls">
+                <button class="control-btn minimize"></button>
+                <button class="control-btn maximize"></button>
+                <button class="control-btn close"></button>
+            </div>
+        </div>
+        
+        <div class="menubar">
+            <span class="menu-item">Archivo</span>
+            <span class="menu-item">Editar</span>
+            <span class="menu-item">Ver</span>
+            <span class="menu-item">Audio</span>
+            <span class="menu-item">Herramientas</span>
+            <span class="menu-item">Ayuda</span>
+        </div>
+        
+        <div class="main-content">
+            <div class="sidebar">
+                <div class="success-indicator">
+                    ✅ Audio inicializado correctamente
+                </div>
+                
+                <div class="section">
+                    <h3>📁 Archivos de Audio</h3>
+                    <div class="file-list">
+                        <div class="file-item active">sesion_001.wav</div>
+                        <div class="file-item">sesion_002.mp3</div>
+                        <div class="file-item">sesion_003.wav</div>
+                        <div class="file-item">sesion_004.mp3</div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h3>🎛️ Controles</h3>
+                    <button class="btn">Cargar ZIP</button>
+                    <button class="btn">Exportar Reporte</button>
+                    <button class="btn btn-success">Configuración</button>
+                </div>
+            </div>
+            
+            <div class="content-area">
+                <div class="audio-controls">
+                    <div class="control-buttons">
+                        <button class="control-btn-audio">⏮️ Anterior</button>
+                        <button class="control-btn-audio active">▶️ Reproducir</button>
+                        <button class="control-btn-audio">⏸️ Pausa</button>
+                        <button class="control-btn-audio">⏹️ Detener</button>
+                        <button class="control-btn-audio">⏭️ Siguiente</button>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <div>🔊 Volumen: 70% | Tiempo: 01:25 / 04:12 | Velocidad: 1.0x</div>
+                </div>
+                
+                <div class="section">
+                    <h3>📊 Forma de Onda</h3>
+                    <div class="waveform">
+                        <div class="waveform-data">
+                            <div class="wave-bar" style="height: 30px;"></div>
+                            <div class="wave-bar" style="height: 50px;"></div>
+                            <div class="wave-bar" style="height: 25px;"></div>
+                            <div class="wave-bar" style="height: 40px;"></div>
+                            <div class="wave-bar" style="height: 60px;"></div>
+                            <div class="wave-bar" style="height: 35px;"></div>
+                            <div class="wave-bar" style="height: 45px;"></div>
+                            <div class="wave-bar" style="height: 20px;"></div>
+                            <div class="wave-bar" style="height: 55px;"></div>
+                            <div class="wave-bar" style="height: 30px;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h3>📝 Información de la Sesión</h3>
+                    <p><strong>Archivo:</strong> sesion_001.wav</p>
+                    <p><strong>Duración:</strong> 04:12</p>
+                    <p><strong>Frecuencia:</strong> 22050 Hz</p>
+                    <p><strong>Canales:</strong> 2 (Stereo)</p>
+                    <p><strong>Estado Audio:</strong> ✅ Inicializado con modo dummy</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="status-bar">
+            <span>✅ Audio funcional | pygame 2.6.1 | Listo para reproducir</span>
+            <span>Session Reader 2.0 - Desarrollado con Python</span>
+        </div>
+    </div>
+</body>
+</html>
