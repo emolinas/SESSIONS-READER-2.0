@@ -56,6 +56,7 @@ Este proyecto usa Git para control de versiones:
 ## Changelog
 
 ### v1.0.0 (2025-07-30)
+
 - Versión inicial con todas las características principales
 - Reproductor de audio con controles avanzados
 - Sistema de favoritos y notas
@@ -83,9 +84,36 @@ Proyecto de uso personal.
 4. Ejecuta la aplicación:
 
    # PowerShell
+
    & "C:/Users/emsin/MY PROYECTS/VISUAL ESTUDIO CODE/SESSIONS READER/Scripts/python.exe" "Scripts/visor_launcher.py"
 
 ## Notas
 
 - No mantengas el entorno virtual dentro del repositorio; ya fue removido del control de versiones.
 - Si ves avisos relacionados con ffmpeg, coloca `ffmpeg.exe` en `Scripts/` o define `FFMPEG_PATH`.
+
+## Instalación de ffmpeg (Windows)
+
+Algunas operaciones (p. ej. procesar ciertos archivos de audio con `pydub`) requieren `ffmpeg` en el sistema. Puedes instalarlo manualmente o usar el script incluido.
+
+Opción A — Manual (rápido):
+
+1. Descarga una build estática de ffmpeg para Windows (por ejemplo desde <https://www.gyan.dev/ffmpeg/builds/>).
+2. Extrae `ffmpeg.exe` y colócalo en la carpeta `Scripts/` del proyecto (misma carpeta que el intérprete del virtualenv).
+3. Reinicia tu terminal o VS Code para que la variable de entorno `FFMPEG_PATH` sea reconocida o define `FFMPEG_PATH` apuntando a `Scripts\ffmpeg.exe`.
+
+Opción B — Automática (PowerShell):
+
+Ejecuta el script incluido `Scripts/install_ffmpeg.ps1` en PowerShell con permisos de usuario: este descargará una build esencial, extraerá `ffmpeg.exe` en `Scripts/`, y configurará `FFMPEG_PATH` para el usuario.
+
+Uso:
+
+```powershell
+# Ejecutar desde la raíz del proyecto
+.\Scripts\install_ffmpeg.ps1
+```
+
+Notas:
+
+- `setx` se usa para persistir `FFMPEG_PATH` para futuras sesiones; reinicia VS Code o abre una nueva terminal para ver el cambio reflejado.
+- Si prefieres otra fuente de builds de ffmpeg, modifica el script `Scripts/install_ffmpeg.ps1`.
