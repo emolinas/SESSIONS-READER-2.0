@@ -98,8 +98,51 @@ if not LIBROSA_AVAILABLE:
 if not SOUNDFILE_AVAILABLE:
     logger.info("Soundfile no disponible - usando fallback con pydub")
 
-# Inicializar mezclador de audio
-mixer.init()
+# Inicializar mezclador de audio con configuración mejorada para compatibilidad
+def initialize_audio():
+    """Inicializar audio con múltiples estrategias de fallback"""
+    # Estrategia 1: Configuración optimizada para Windows
+    if os.name == 'nt':  # Windows
+        try:
+            os.environ['SDL_AUDIODRIVER'] = 'directsound'
+            mixer.pre_init(frequency=22050, size=-16, channels=2)
+            mixer.init()
+            logger.info(f"Audio Windows inicializado: {mixer.get_init()}")
+            return True
+        except Exception as e:
+            logger.warning(f"Error con DirectSound: {e}")
+    
+    # Estrategia 2: Pre-init con parámetros específicos (multiplataforma)
+    try:
+        mixer.quit()  # Limpiar estado previo
+        mixer.pre_init(frequency=22050, size=-16, channels=2)
+        mixer.init()
+        logger.info(f"Audio pre-init inicializado: {mixer.get_init()}")
+        return True
+    except Exception as e:
+        logger.warning(f"Error con pre-init: {e}")
+    
+    # Estrategia 3: Inicialización básica como fallback
+    try:
+        mixer.quit()  # Limpiar estado previo
+        mixer.init()
+        logger.info(f"Audio básico inicializado: {mixer.get_init()}")
+        return True
+    except Exception as e:
+        logger.warning(f"Error con init básico: {e}")
+    
+    # Estrategia 4: Modo dummy para entornos sin audio
+    try:
+        os.environ['SDL_AUDIODRIVER'] = 'dummy'
+        mixer.init()
+        logger.info("Audio inicializado en modo dummy (sin hardware de audio)")
+        return True
+    except Exception as e:
+        logger.error(f"No se pudo inicializar el audio en ningún modo: {e}")
+        return False
+
+# Inicializar audio
+audio_initialized = initialize_audio()
 
 class ToolTip:
     """Clase simple para mostrar tooltips en widgets"""
